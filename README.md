@@ -1,8 +1,8 @@
 # Added
 There are three change:
-## 1. Separate original model to several modules.
-## 2. Combine PANet from [YuefeiZ](https://github.com/YuefeiZ/PANet).
-## 3. Add pascal sample for personal processed PASCAL data.
+1. Separate original model to several modules.
+2. Combine PANet from [YuefeiZ](https://github.com/YuefeiZ/PANet).
+3. Add pascal sample for personal processed PASCAL data.
 
 # Mask R-CNN for Object Detection and Segmentation
 
