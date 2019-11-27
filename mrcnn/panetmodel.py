@@ -35,10 +35,10 @@ tf.compat.v1.disable_eager_execution()
 
 
 ############################################################
-#  MaskRCNN Class
+#  PANet MaskRCNN Class
 ############################################################
 
-class MaskRCNN:
+class PAMaskRCNN:
     """Encapsulates the Mask RCNN model functionality.
 
     The actual Keras model is in the keras_model property.

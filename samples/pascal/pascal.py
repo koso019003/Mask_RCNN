@@ -372,8 +372,8 @@ if __name__ == '__main__':
 
     # Create model
     if args.use_pa:
-        model = panetmodellib.MaskRCNN(mode=command_mode, config=config,
-                                       model_dir=MODEL_DIR)
+        model = panetmodellib.PAMaskRCNN(mode=command_mode, config=config,
+                                         model_dir=MODEL_DIR)
     else:
         model = modellib.MaskRCNN(mode=command_mode, config=config,
                                   model_dir=MODEL_DIR)
