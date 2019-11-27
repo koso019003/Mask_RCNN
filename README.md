@@ -3,7 +3,7 @@ There are five change:
 1. Run on Tensorflow2.0 (cuda10, cudnn7.6.5)
 2. Separate original model to several modules.
 3. Combine PANet from [YuefeiZ](https://github.com/YuefeiZ/PANet).
-4. Add pascal sample for personal processed PASCAL data. *Note for Original PASCAL data process can look [genausz] (https://github.com/genausz/Mask_RCNN/tree/master/samples/voc)
+4. Add pascal sample for personal processed PASCAL data. *Note for Original PASCAL data process can look [genausz](https://github.com/genausz/Mask_RCNN/tree/master/samples/voc)
 5. Can't run multi-thread, alternative use [this](https://github.com/matterport/Mask_RCNN/issues/13#issuecomment-342534442).
 
 # Mask R-CNN for Object Detection and Segmentation
