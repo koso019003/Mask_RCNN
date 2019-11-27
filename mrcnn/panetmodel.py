@@ -141,9 +141,25 @@ class MaskRCNN:
         # # subsampling from P5 with stride of 2.
         P6 = KL.MaxPooling2D(pool_size=(1, 1), strides=2, name="fpn_p6")(P5)
 
+        # Bottom-up Layers
+        N3 = KL.Add(name="fpn_n3add")([P3,
+                                       KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (3, 3), strides=(2, 2), padding="SAME",
+                                                 name='fpn_n2conv')(P2)])
+        N4 = KL.Add(name="fpn_n4add")([P4,
+                                       KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (3, 3), strides=(2, 2), padding="SAME",
+                                                 name='fpn_n4conv')(N3)])
+        N5 = KL.Add(name="fpn_n5add")([P5,
+                                       KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (3, 3), strides=(2, 2), padding="SAME",
+                                                 name='fpn_n5conv')(N4)])
+
+        N3 = KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (3, 3), strides=(1, 1), padding="SAME", name="fpn_n3")(N3)
+        N4 = KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (3, 3), strides=(1, 1), padding="SAME", name="fpn_n4")(N4)
+        N5 = KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (3, 3), strides=(1, 1), padding="SAME", name="fpn_n5")(N5)
+        N6 = KL.MaxPooling2D(pool_size=(1, 1), strides=2, name="fpn_n6")(N5)
+
         # Note that P6 is used in RPN, but not in the classifier heads.
-        rpn_feature_maps = [P2, P3, P4, P5, P6]
-        mrcnn_feature_maps = [P2, P3, P4, P5]
+        rpn_feature_maps = [P2, N3, N4, N5, N6]
+        mrcnn_feature_maps = [P2, N3, N4, N5]
 
         # Anchors
         if mode == "training":
@@ -213,16 +229,16 @@ class MaskRCNN:
             # Network Heads
             # TODO: verify that this handles zero padded ROIs
             mrcnn_class_logits, mrcnn_class, mrcnn_bbox = \
-                fpn_classifier_graph(rois, mrcnn_feature_maps, input_image_meta,
-                                     config.POOL_SIZE, config.NUM_CLASSES,
-                                     train_bn=config.TRAIN_BN,
-                                     fc_layers_size=config.FPN_CLASSIF_FC_LAYERS_SIZE)
+                panet_fpn_classifier_graph(rois, mrcnn_feature_maps, input_image_meta,
+                                           config.POOL_SIZE, config.NUM_CLASSES,
+                                           train_bn=config.TRAIN_BN,
+                                           fc_layers_size=config.FPN_CLASSIF_FC_LAYERS_SIZE)
 
-            mrcnn_mask = build_fpn_mask_graph(rois, mrcnn_feature_maps,
-                                              input_image_meta,
-                                              config.MASK_POOL_SIZE,
-                                              config.NUM_CLASSES,
-                                              train_bn=config.TRAIN_BN)
+            mrcnn_mask = panet_build_fpn_mask_graph(rois, mrcnn_feature_maps,
+                                                    input_image_meta,
+                                                    config.MASK_POOL_SIZE,
+                                                    config.NUM_CLASSES,
+                                                    train_bn=config.TRAIN_BN)
 
             # TODO: clean up (use tf.identify if necessary)
             output_rois = KL.Lambda(lambda x: x * 1, name="output_rois")(rois)
@@ -253,10 +269,10 @@ class MaskRCNN:
             # Network Heads
             # Proposal classifier and BBox regressor heads
             mrcnn_class_logits, mrcnn_class, mrcnn_bbox = \
-                fpn_classifier_graph(rpn_rois, mrcnn_feature_maps, input_image_meta,
-                                     config.POOL_SIZE, config.NUM_CLASSES,
-                                     train_bn=config.TRAIN_BN,
-                                     fc_layers_size=config.FPN_CLASSIF_FC_LAYERS_SIZE)
+                panet_fpn_classifier_graph(rpn_rois, mrcnn_feature_maps, input_image_meta,
+                                           config.POOL_SIZE, config.NUM_CLASSES,
+                                           train_bn=config.TRAIN_BN,
+                                           fc_layers_size=config.FPN_CLASSIF_FC_LAYERS_SIZE)
 
             # Detections
             # output is [batch, num_detections, (y1, x1, y2, x2, class_id, score)] in
@@ -266,11 +282,11 @@ class MaskRCNN:
 
             # Create masks for detections
             detection_boxes = KL.Lambda(lambda x: x[..., :4])(detections)
-            mrcnn_mask = build_fpn_mask_graph(detection_boxes, mrcnn_feature_maps,
-                                              input_image_meta,
-                                              config.MASK_POOL_SIZE,
-                                              config.NUM_CLASSES,
-                                              train_bn=config.TRAIN_BN)
+            mrcnn_mask = panet_build_fpn_mask_graph(detection_boxes, mrcnn_feature_maps,
+                                                    input_image_meta,
+                                                    config.MASK_POOL_SIZE,
+                                                    config.NUM_CLASSES,
+                                                    train_bn=config.TRAIN_BN)
 
             model = KM.Model([input_image, input_image_meta, input_anchors],
                              [detections, mrcnn_class, mrcnn_bbox,
@@ -547,6 +563,9 @@ class MaskRCNN:
             "5+": r"(res5.*)|(bn5.*)|(mrcnn\_.*)|(rpn\_.*)|(fpn\_.*)",
             # All layers
             "all": ".*",
+            # panet
+            "panet": r"(mrcnn\_.*)|(rpn\_.*)|(fpn\_.*)|(roi\_.*)",
+
         }
         if layers in layer_regex.keys():
             layers = layer_regex[layers]
@@ -835,6 +854,11 @@ class MaskRCNN:
             self._anchor_cache = {}
         if not tuple(image_shape) in self._anchor_cache:
             # Generate Anchors
+            # RPN_ANCHOR_SCALES = ( 8,16 , 32 , 64 , 128 )
+            # RPN_ANCHOR_RATIOS = [0.5, 1, 2]
+            # backbone_shape=[[32 32][16 16][ 8  8][ 4  4][ 2  2]]
+            # BACKBONE_STRIDES = [4, 8, 16, 32, 64]
+            # RPN_ANCHOR_STRIDE = 1
             a = utils.generate_pyramid_anchors(
                 self.config.RPN_ANCHOR_SCALES,
                 self.config.RPN_ANCHOR_RATIOS,

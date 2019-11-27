@@ -199,8 +199,8 @@ def box_refinement_graph(box, gt_box):
 
     dy = (gt_center_y - center_y) / height
     dx = (gt_center_x - center_x) / width
-    dh = tf.log(gt_height / height)
-    dw = tf.log(gt_width / width)
+    dh = tf.math.log(gt_height / height)
+    dw = tf.math.log(gt_width / width)
 
     result = tf.stack([dy, dx, dh, dw], axis=1)
     return result
@@ -906,3 +906,67 @@ def resize(image, output_shape, order=1, mode='constant', cval=0, clip=True,
             image, output_shape,
             order=order, mode=mode, cval=cval, clip=clip,
             preserve_range=preserve_range)
+
+
+def compute_mask_right_wrong(gt_bbox, gt_mask, gt_cls, pred_bbox, pred_mask, pred_cls, pred_score, overlap_thresh=0.5):
+    n_gt = len(gt_bbox)
+    n_pre = len(pred_bbox)
+    corrcet_list = [False] * n_pre
+    overlap_list = [0] * n_pre
+
+    gt_taken = [False] * n_gt
+    take_order = (-pred_score).argsort()
+
+    for ith_pre in take_order:
+        best_overlap = -1
+        besp_overlap_place = -1
+        for jth_gt in range(n_gt):
+            if not gt_taken[jth_gt] and pred_cls[ith_pre] == gt_cls[jth_gt]:
+                overlap = mask_overlap(pred_bbox[ith_pre], gt_bbox[jth_gt],
+                                       pred_mask[:, :, ith_pre], gt_mask[:, :, jth_gt])
+                if overlap > best_overlap:
+                    best_overlap = overlap
+                    besp_overlap_place = jth_gt
+        if best_overlap > overlap_thresh:
+            corrcet_list[ith_pre] = True
+            gt_taken[besp_overlap_place] = True
+            overlap_list[ith_pre] = best_overlap
+
+    return np.array(corrcet_list), pred_score[take_order], overlap_list
+
+
+def mask_overlap(box1, box2, mask1, mask2):
+    """
+    This function calculate region IOU when masks are
+    inside different boxes
+    Returns:
+        intersection over unions of this two masks
+    """
+    mask1_crop = mask1[box1[0]:box1[2], box1[1]:box1[3]]
+    mask2_crop = mask2[box2[0]:box2[2], box2[1]:box2[3]]
+
+    x1 = max(box1[0], box2[0])
+    y1 = max(box1[1], box2[1])
+    x2 = min(box1[2], box2[2])
+    y2 = min(box1[3], box2[3])
+
+    if x1 > x2 or y1 > y2:
+        return 0
+    w = x2 - x1 + 1
+    h = y2 - y1 + 1
+    # get masks in the intersection part
+    start_ya = y1 - box1[1]
+    start_xa = x1 - box1[0]
+    inter_maska = mask1_crop[start_xa: start_xa + w - 1, start_ya:start_ya + h - 1]
+
+    start_yb = y1 - box2[1]
+    start_xb = x1 - box2[0]
+    inter_maskb = mask2_crop[start_xb: start_xb + w - 1, start_yb:start_yb + h - 1]
+
+    assert inter_maska.shape == inter_maskb.shape
+
+    inter = np.logical_and(inter_maskb, inter_maska).sum()
+    union = mask1.sum() + mask2.sum() - inter
+    if union < 1.0:
+        return 0
+    return float(inter) / float(union)
