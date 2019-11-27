@@ -1,10 +1,12 @@
 # Added
-There are five change:
+There are seven change:
 1. Run on Tensorflow2.0 (cuda10, cudnn7.6.5)
 2. Separate original model to several modules.
 3. Combine PANet from [YuefeiZ](https://github.com/YuefeiZ/PANet).
-4. *Add pascal sample for personal processed PASCAL data.
-5. Can't run multi-thread, alternative use [this](https://github.com/matterport/Mask_RCNN/issues/13#issuecomment-342534442).
+4. Add voc_eval.py from [rbgirshick](https://github.com/rbgirshick/py-faster-rcnn/blob/master/lib/datasets/voc_eval.py)
+5. Add function from compute_mask_right_wrong [this issue](https://github.com/matterport/Mask_RCNN/issues/51)
+6. Can't run multi-thread, alternative use [this](https://github.com/matterport/Mask_RCNN/issues/13#issuecomment-342534442).
+7. *Add pascal sample for personal processed PASCAL data.
 
 ***Note: for Original PASCAL data process can look [genausz](https://github.com/genausz/Mask_RCNN/tree/master/samples/voc)**
 
